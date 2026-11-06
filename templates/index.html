@@ -5,36 +5,53 @@
   <title>Massive Stock Watchlist</title>
   <style>
     :root {
-      --bg: #f3f5f8;
+      --bg-a: #edf0f6;
+      --bg-b: #e4eaf3;
       --card: #ffffff;
-      --text: #1a2233;
-      --muted: #6b7688;
+      --text: #17202e;
+      --muted: #66748a;
       --accent: #ff3621;
       --accent-dark: #d92c19;
-      --border: #e3e8ef;
-      --radius: 12px;
-      --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .08);
+      --border: #e4e9f0;
+      --radius: 14px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 10px 30px rgba(15, 23, 42, .10);
+      --red: #b3261e;
+      --red-bg: #fdecea;
+      --green: #0e8a5f;
+      --green-bg: #e7f6ef;
     }
     * { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      background: var(--bg);
+      background: linear-gradient(165deg, var(--bg-a), var(--bg-b));
+      min-height: 100vh;
+      margin: 0;
+      padding: 48px 20px;
       color: var(--text);
-      max-width: 640px;
-      margin: 48px auto;
-      padding: 0 20px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
-    h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.02em; }
-    .hint { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+    .hero {
+      background:
+        radial-gradient(500px 200px at 85% -30%, rgba(255, 54, 33, .45), transparent 65%),
+        linear-gradient(135deg, #1b2432, #2a1a22 60%, #471d15);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 30px 28px;
+      margin: 0 auto 24px;
+      max-width: 660px;
+      box-shadow: var(--shadow);
+    }
+    .hero h1 { font-size: 26px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em; }
+    .hero .hint { color: rgba(255, 255, 255, .72); font-size: 14px; margin: 0; max-width: 48ch; }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 24px;
-      margin-bottom: 24px;
+      margin: 0 auto 24px;
+      max-width: 660px;
     }
     label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 8px; }
     .input-row { display: flex; gap: 12px; }
@@ -68,18 +85,19 @@
     button:hover { background: var(--accent-dark); }
     button:active { transform: translateY(1px); }
     #result {
-      margin-top: 16px;
+      max-width: 660px;
+      margin: 0 auto 24px;
       padding: 10px 14px;
       border-radius: 8px;
       font-size: 14px;
-      background: #f0f3f8;
+      background: #eef2f8;
       color: var(--text);
       white-space: pre-wrap;
       border: 1px solid transparent;
     }
     #result:empty { display: none; }
-    #result.error { background: #fdeceb; color: #a4271a; border-color: #f5c6c1; }
-    #result.success { background: #e8f7ee; color: #157347; border-color: #bce5cc; }
+    #result.error { background: var(--red-bg); color: var(--red); border-color: #f2c4c0; }
+    #result.success { background: var(--green-bg); color: var(--green); border-color: #bde5d1; }
     .table-card { padding: 0; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); }
@@ -89,21 +107,61 @@
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: .04em;
-      background: #fafbfc;
+      background: #f7f9fc;
     }
     tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover { background: #fafbfc; }
-    td:first-child { font-weight: 600; }
-    .empty-row td { color: var(--muted); text-align: center; padding: 24px; font-style: italic; font-weight: 400; }
+    tbody tr:hover { background: #f7f9fc; }
+    td.symbol {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
+    td.email, td.updated { color: var(--muted); }
+    td.updated { font-size: 13px; white-space: nowrap; }
+    .price {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      background: #eef2f8;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+    th.th-actions { width: 48px; }
+    td.actions { text-align: right; }
+    .delete-btn {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1;
+      border: 1px solid var(--border);
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .delete-btn:hover { background: var(--red-bg); color: var(--red); border-color: #f2c4c0; }
+    .delete-btn:disabled { opacity: .5; cursor: default; }
+    .empty-row td { color: var(--muted); text-align: center; padding: 24px; font-style: italic; }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      clip: rect(0 0 0 0);
+      overflow: hidden;
+    }
     @media (max-width: 520px) {
-      body { margin: 24px auto; }
+      body { padding: 24px 16px; }
       .input-row { flex-direction: column; }
+      th, td { padding: 10px 12px; }
     }
   </style>
 </head>
 <body>
-  <h1>Stock Watchlist</h1>
-  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  <header class="hero">
+    <h1>Stock Watchlist</h1>
+    <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  </header>
 
   <form id="stock-form" class="card">
     <label for="symbol">Ticker symbol</label>
@@ -123,6 +181,7 @@
           <th>Email</th>
           <th>Latest price</th>
           <th>Updated</th>
+          <th class="th-actions"><span class="visually-hidden">Actions</span></th>
         </tr>
       </thead>
       <tbody id="watchlist-body"></tbody>
@@ -149,7 +208,7 @@
         }
         watchlistBody.innerHTML = "";
         if (data.length === 0) {
-          watchlistBody.innerHTML = '<tr class="empty-row"><td colspan="4">No stocks on your watchlist yet.</td></tr>';
+          watchlistBody.innerHTML = '<tr class="empty-row"><td colspan="5">No stocks on your watchlist yet.</td></tr>';
           return;
         }
         data.forEach((row) => {
@@ -158,13 +217,38 @@
             ? Number(row.latest_price).toFixed(2)
             : "-";
           const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
-          tr.innerHTML = `<td>${row.symbol}</td><td>${row.email || "-"}</td><td>${price}</td><td>${updated}</td>`;
+          tr.innerHTML = `<td class="symbol">${row.symbol}</td><td class="email">${row.email || "-"}</td><td><span class="price">${price}</span></td><td class="updated">${updated}</td><td class="actions"><button class="delete-btn" data-symbol="${row.symbol}" title="Remove ${row.symbol}" aria-label="Remove ${row.symbol}">\u00d7</button></td>`;
           watchlistBody.appendChild(tr);
         });
       } catch (err) {
         setResult("Failed to load watchlist: " + err, "error");
       }
     }
+
+    watchlistBody.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".delete-btn");
+      if (!btn) return;
+      const symbol = btn.dataset.symbol;
+      btn.disabled = true;
+      try {
+        const resp = await fetch("/watchlist", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          setResult("Error removing " + symbol + ": " + (data.error || resp.statusText), "error");
+          btn.disabled = false;
+          return;
+        }
+        setResult("Removed " + symbol + " from your watchlist.", "success");
+        loadWatchlist();
+      } catch (err) {
+        setResult("Request failed: " + err, "error");
+        btn.disabled = false;
+      }
+    });
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();

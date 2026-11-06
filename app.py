@@ -197,6 +197,31 @@ def add_to_watchlist():
     return jsonify({"symbol": symbol, "email": email, "latest_price": price})
 
 
+@app.route("/watchlist", methods=["DELETE"])
+def remove_from_watchlist():
+    """Remove a symbol from the current user's watchlist in Lakebase."""
+    ensure_watchlist_table()
+
+    symbol = request.json.get("symbol", "") if request.is_json else request.form.get("symbol", "")
+    symbol = symbol.strip().upper() if isinstance(symbol, str) else ""
+
+    if not symbol or not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+
+    email = _current_user_email()
+
+    with lakebase.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"DELETE FROM {WATCHLIST_TABLE_NAME} WHERE symbol = %s AND email = %s",
+                (symbol, email),
+            )
+            deleted = cur.rowcount > 0
+            conn.commit()
+
+    return jsonify({"symbol": symbol, "deleted": deleted})
+
+
 def _extract_latest_price(data: dict) -> float | None:
     """Pull the trade price out of the Massive 'previous close' response shape.
 
