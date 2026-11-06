@@ -125,8 +125,8 @@
       padding: 3px 10px;
       border-radius: 999px;
     }
-    th.th-actions { width: 48px; }
-    td.actions { text-align: right; }
+    th.th-actions { width: 140px; }
+    td.actions { display: flex; justify-content: flex-end; gap: 8px; }
     .delete-btn {
       width: 28px;
       height: 28px;
@@ -141,6 +141,33 @@
     }
     .delete-btn:hover { background: var(--red-bg); color: var(--red); border-color: #f2c4c0; }
     .delete-btn:disabled { opacity: .5; cursor: default; }
+    .news-btn {
+      padding: 5px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .news-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .news-btn:active { transform: none; }
+    .news-row td { background: #f7f9fc; padding: 0 16px 16px; }
+    .news-panel {
+      padding: 12px 14px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .news-list { list-style: none; margin: 0; padding: 0; }
+    .news-list li { padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .news-list li:last-child { border-bottom: none; }
+    .news-list a { color: #2547cf; text-decoration: none; font-weight: 500; }
+    .news-list a:hover { text-decoration: underline; }
+    .news-meta { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .news-empty { color: var(--muted); font-style: italic; margin: 0; }
     .empty-row td { color: var(--muted); text-align: center; padding: 24px; font-style: italic; }
     .visually-hidden {
       position: absolute;
@@ -217,7 +244,7 @@
             ? Number(row.latest_price).toFixed(2)
             : "-";
           const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
-          tr.innerHTML = `<td class="symbol">${row.symbol}</td><td class="email">${row.email || "-"}</td><td><span class="price">${price}</span></td><td class="updated">${updated}</td><td class="actions"><button class="delete-btn" data-symbol="${row.symbol}" title="Remove ${row.symbol}" aria-label="Remove ${row.symbol}">\u00d7</button></td>`;
+          tr.innerHTML = `<td class="symbol">${row.symbol}</td><td class="email">${row.email || "-"}</td><td><span class="price">${price}</span></td><td class="updated">${updated}</td><td class="actions"><button class="news-btn" data-symbol="${row.symbol}" aria-label="News for ${row.symbol}">News</button><button class="delete-btn" data-symbol="${row.symbol}" title="Remove ${row.symbol}" aria-label="Remove ${row.symbol}">\u00d7</button></td>`;
           watchlistBody.appendChild(tr);
         });
       } catch (err) {
@@ -225,7 +252,70 @@
       }
     }
 
+    const newsCache = {};
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function newsPanelHtml(items) {
+      if (!items || items.length === 0) {
+        return '<p class="news-empty">No recent news found for this symbol.</p>';
+      }
+      const listItems = items.map((item) => {
+        const date = item.published_utc ? new Date(item.published_utc).toLocaleDateString() : "";
+        const pub = item.publisher ? " \u00b7 " + item.publisher : "";
+        return `<li><a href="${escapeHtml(item.article_url)}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a><span class="news-meta">${escapeHtml(date + pub)}</span></li>`;
+      });
+      return '<ul class="news-list">' + listItems.join("") + "</ul>";
+    }
+
+    async function toggleNews(btn) {
+      const symbol = btn.dataset.symbol;
+      const row = btn.closest("tr");
+      const existing = row.nextElementSibling;
+
+      if (existing && existing.classList.contains("news-row")) {
+        existing.remove();
+        return;
+      }
+
+      const newsRow = document.createElement("tr");
+      newsRow.className = "news-row";
+      newsRow.innerHTML = `<td colspan="5"><div class="news-panel">Loading news...</div></td>`;
+      row.after(newsRow);
+      const panel = newsRow.querySelector(".news-panel");
+
+      try {
+        let items;
+        if (newsCache[symbol]) {
+          items = newsCache[symbol];
+        } else {
+          const resp = await fetch("/news/" + encodeURIComponent(symbol), { method: "POST" });
+          const data = await resp.json();
+          if (!resp.ok) {
+            panel.innerHTML = escapeHtml(data.error || resp.statusText);
+            return;
+          }
+          items = data.items || [];
+          newsCache[symbol] = items;
+        }
+        panel.innerHTML = newsPanelHtml(items);
+      } catch (err) {
+        panel.innerHTML = escapeHtml("Request failed: " + err);
+      }
+    }
+
     watchlistBody.addEventListener("click", async (e) => {
+      const newsBtn = e.target.closest(".news-btn");
+      if (newsBtn) {
+        await toggleNews(newsBtn);
+        return;
+      }
       const btn = e.target.closest(".delete-btn");
       if (!btn) return;
       const symbol = btn.dataset.symbol;

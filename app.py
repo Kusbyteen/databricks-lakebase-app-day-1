@@ -28,6 +28,7 @@ _w = WorkspaceClient()
 
 TABLE_NAME = os.environ.get("MASSIVE_TABLE_NAME", "massive_records")
 WATCHLIST_TABLE_NAME = os.environ.get("WATCHLIST_TABLE_NAME", "watchlist")
+NEWS_TABLE_NAME = os.environ.get("NEWS_TABLE_NAME", "ticker_news")
 
 # Basic stock ticker shape check: 1-10 uppercase letters, with an optional
 # ".X" or ".XX" share-class suffix (e.g. "BRK.B"). This rejects obviously
@@ -58,6 +59,23 @@ def ensure_watchlist_table():
             latest_price NUMERIC,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             PRIMARY KEY (symbol, email)
+        )
+        """
+    )
+
+
+def ensure_news_table():
+    """Create the ticker_news table in Lakebase if it doesn't exist yet."""
+    lakebase.run_write(
+        f"""
+        CREATE TABLE IF NOT EXISTS {NEWS_TABLE_NAME} (
+            news_id TEXT PRIMARY KEY,
+            symbol TEXT NOT NULL,
+            title TEXT,
+            article_url TEXT,
+            publisher TEXT,
+            published_utc TEXT,
+            fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
         """
     )
@@ -220,6 +238,76 @@ def remove_from_watchlist():
             conn.commit()
 
     return jsonify({"symbol": symbol, "deleted": deleted})
+
+
+@app.route("/news/<symbol>", methods=["GET"])
+def get_cached_news(symbol: str):
+    """Return cached news for a symbol from Lakebase (zero Massive API calls)."""
+    symbol = symbol.strip().upper()
+    if not symbol or not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+
+    ensure_news_table()
+    rows = lakebase.run_query(
+        f"""
+        SELECT news_id, title, article_url, publisher, published_utc
+        FROM {NEWS_TABLE_NAME}
+        WHERE symbol = %s
+        ORDER BY published_utc DESC
+        """,
+        (symbol,),
+    )
+    return jsonify({"symbol": symbol, "items": rows})
+
+
+@app.route("/news/<symbol>", methods=["POST"])
+def fetch_ticker_news(symbol: str):
+    """Fetch fresh news for one symbol (single Massive API call) and cache it in Lakebase."""
+    symbol = symbol.strip().upper()
+    if not symbol or not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+
+    ensure_news_table()
+
+    try:
+        data = _client().get_ticker_news(symbol, limit=10)
+    except requests.RequestException as exc:
+        logger.warning("Failed to fetch news for %s: %s", symbol, exc)
+        return jsonify({"error": f"Failed to fetch news from the Massive API: {exc}"}), 502
+
+    items = [
+        {
+            "news_id": str(item.get("id")),
+            "title": item.get("title"),
+            "article_url": item.get("article_url"),
+            "publisher": (item.get("publisher") or {}).get("name"),
+            "published_utc": item.get("published_utc"),
+        }
+        for item in data.get("results", []) or []
+    ]
+
+    with lakebase.get_connection() as conn:
+        with conn.cursor() as cur:
+            for item in items:
+                cur.execute(
+                    f"""
+                    INSERT INTO {NEWS_TABLE_NAME}
+                        (news_id, symbol, title, article_url, publisher, published_utc)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (news_id) DO NOTHING
+                    """,
+                    (
+                        item["news_id"],
+                        symbol,
+                        item["title"],
+                        item["article_url"],
+                        item["publisher"],
+                        item["published_utc"],
+                    ),
+                )
+            conn.commit()
+
+    return jsonify({"symbol": symbol, "count": len(items), "items": items})
 
 
 def _extract_latest_price(data: dict) -> float | None:
